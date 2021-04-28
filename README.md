@@ -1,1 +1,1 @@
-"# parallel-hooke-jeeves CEID" 
+# parallel-hooke-jeeves CEID
