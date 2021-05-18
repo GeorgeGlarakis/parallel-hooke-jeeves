@@ -137,6 +137,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <omp.h>
 
 #define MAXVARS		(250)	/* max # of variables	     */
 #define RHO_BEGIN	(0.5)	/* stepsize geometric shrink */
@@ -155,39 +156,59 @@ double f(double *x, int n)
 
 	funevals++;
     fv = 0.0;
+	#pragma omp parallel
+	{
+		double fvi;
+	#pragma omp for nowait
     for (i=0; i<n-1; i++)   /* rosenbrock */
-        fv = fv + 100.0*pow((x[i+1]-x[i]*x[i]),2) + pow((x[i]-1.0),2);
+	{
+        fvi = 100.0*pow((x[i+1]-x[i]*x[i]),2) + pow((x[i]-1.0),2);
 
+		#pragma omp critical
+		{ fv = fv + fvi; }
+	
+	}
     return fv;
+	}
 }
 
 /* given a point, look for a better one nearby, one coord at a time */
 double best_nearby(double delta[MAXVARS], double point[MAXVARS], double prevbest, int nvars)
 {
 	double z[MAXVARS];
-	double minf, ftmp;
+	double minf;
 	int i;
 	minf = prevbest;
+
+	#pragma omp parallel
+	{
+	#pragma omp for nowait
 	for (i = 0; i < nvars; i++)
 		z[i] = point[i];
+
+	double ftmpi;
+	#pragma omp for nowait
 	for (i = 0; i < nvars; i++) {
 		z[i] = point[i] + delta[i];
-		ftmp = f(z, nvars);
-		if (ftmp < minf)
-			minf = ftmp;
+		ftmpi = f(z, nvars);
+		if (ftmpi < minf)
+			#pragma omp atomic capture
+			minf = ftmpi;
 		else {
 			delta[i] = 0.0 - delta[i];
 			z[i] = point[i] + delta[i];
-			ftmp = f(z, nvars);
-			if (ftmp < minf)
-				minf = ftmp;
+			ftmpi = f(z, nvars);
+			if (ftmpi < minf)
+				#pragma omp atomic capture
+				minf = ftmpi;
 			else
 				z[i] = point[i];
 		}
 	}
+	#pragma omp for nowait
 	for (i = 0; i < nvars; i++)
 		point[i] = z[i];
-
+	}
 	return (minf);
 }
 
@@ -199,7 +220,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	double xbefore[MAXVARS], newx[MAXVARS];
 	int i, j, keep;
 	int iters, iadj;
-
+	
 	for (i = 0; i < nvars; i++) {
 		newx[i] = xbefore[i] = startpt[i];
 		delta[i] = fabs(startpt[i] * rho);
