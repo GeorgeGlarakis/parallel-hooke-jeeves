@@ -139,6 +139,7 @@
 #include <sys/time.h>
 #include <omp.h>
 
+
 #define MAXVARS		(250)	/* max # of variables	     */
 #define RHO_BEGIN	(0.5)	/* stepsize geometric shrink */
 #define EPSMIN		(1E-6)	/* ending value of stepsize  */
@@ -156,60 +157,39 @@ double f(double *x, int n)
 
 	funevals++;
     fv = 0.0;
-	#pragma omp parallel
-	{
-		double fvi;
-		#pragma omp for nowait
-		for (i=0; i<n-1; i++)   /* rosenbrock */
-		{
-			fvi = 100.0*pow((x[i+1]-x[i]*x[i]),2) + pow((x[i]-1.0),2);
+    for (i=0; i<n-1; i++)   /* rosenbrock */
+        fv = fv + 100.0*pow((x[i+1]-x[i]*x[i]),2) + pow((x[i]-1.0),2);
 
-			#pragma omp critical
-			{ fv = fv + fvi; }
-		
-		}
-	}
-	return fv;
+    return fv;
 }
 
 /* given a point, look for a better one nearby, one coord at a time */
 double best_nearby(double delta[MAXVARS], double point[MAXVARS], double prevbest, int nvars)
 {
 	double z[MAXVARS];
-	double minf;
+	double minf, ftmp;
 	int i;
 	minf = prevbest;
-
-	#pragma omp parallel
-	{
-		//printf("Number of threads:%d\n",omp_get_num_threads());
-		#pragma omp for nowait
-			for (i = 0; i < nvars; i++)
-			z[i] = point[i];
-
-		double ftmpi;
-		#pragma omp for
-			for (i = 0; i < nvars; i++) {
-				z[i] = point[i] + delta[i];
-				ftmpi = f(z, nvars);
-				if (ftmpi < minf)
-					#pragma omp critical  
-						minf = ftmpi;
-				else {
-					delta[i] = 0.0 - delta[i];
-					z[i] = point[i] + delta[i];
-					ftmpi = f(z, nvars);
-					if (ftmpi < minf)
-						#pragma omp critical
-						minf = ftmpi;
-					else
-						z[i] = point[i];
-				}
-			}
-			#pragma omp for nowait
-				for (i = 0; i < nvars; i++)
-					point[i] = z[i];
+	for (i = 0; i < nvars; i++)
+		z[i] = point[i];
+	for (i = 0; i < nvars; i++) {
+		z[i] = point[i] + delta[i];
+		ftmp = f(z, nvars);
+		if (ftmp < minf)
+			minf = ftmp;
+		else {
+			delta[i] = 0.0 - delta[i];
+			z[i] = point[i] + delta[i];
+			ftmp = f(z, nvars);
+			if (ftmp < minf)
+				minf = ftmp;
+			else
+				z[i] = point[i];
+		}
 	}
+	for (i = 0; i < nvars; i++)
+		point[i] = z[i];
+
 	return (minf);
 }
 
@@ -219,34 +199,34 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	double delta[MAXVARS];
 	double newf, fbefore, steplength, tmp;
 	double xbefore[MAXVARS], newx[MAXVARS];
-	int i, j, keep;
+	int i, keep;
 	int iters, iadj;
+
 	
-	#pragma omp parallel for
-		for (i = 0; i < nvars; i++) {
-			newx[i] = xbefore[i] = startpt[i];
-			delta[i] = fabs(startpt[i] * rho);
-			if (delta[i] == 0.0)
-				delta[i] = rho;
-		}
-	
+	#pragma omp parallel for 
+	for (i = 0; i < nvars; i++) {
+		newx[i] = xbefore[i] = startpt[i];
+		delta[i] = fabs(startpt[i] * rho);
+		if (delta[i] == 0.0)
+			delta[i] = rho;
+	}
+
 	iadj = 0;
 	steplength = rho;
 	iters = 0;
 	fbefore = f(newx, nvars);
 	newf = fbefore;
-
-	//#pragma omp parallel private(iadj)
 	while ((iters < itermax) && (steplength > epsilon)) {
 		iters++;
 		iadj++;
 #if DEBUG
+		int j;
 		printf("\nAfter %5d funevals, f(x) =  %.4le at\n", funevals, fbefore);
 		for (j = 0; j < nvars; j++)
 			printf("   x[%2d] = %.4le\n", j, xbefore[j]);
 #endif
 		/* find best new point, one coord at a time */
-		#pragma omp parallel for
+		// #pragma omp parallel for 
 		for (i = 0; i < nvars; i++) {
 			newx[i] = xbefore[i];
 		}
@@ -255,18 +235,18 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 		keep = 1;
 		while ((newf < fbefore) && (keep == 1)) {
 			iadj = 0;
-			#pragma omp parallel for private(tmp)
-				for (i = 0; i < nvars; i++) {
-					/* firstly, arrange the sign of delta[] */
-					if (newx[i] <= xbefore[i])
-						delta[i] = 0.0 - fabs(delta[i]);
-					else
-						delta[i] = fabs(delta[i]);
-					/* now, move further in this direction */
-					tmp = xbefore[i];
-					xbefore[i] = newx[i];
-					newx[i] = newx[i] + newx[i] - tmp;
-				}
+			// #pragma omp parallel for private(tmp)
+			for (i = 0; i < nvars; i++) {
+				/* firstly, arrange the sign of delta[] */
+				if (newx[i] <= xbefore[i])
+					delta[i] = 0.0 - fabs(delta[i]);
+				else
+					delta[i] = fabs(delta[i]);
+				/* now, move further in this direction */
+				tmp = xbefore[i];
+				xbefore[i] = newx[i];
+				newx[i] = newx[i] + newx[i] - tmp;
+			}
 			fbefore = newf;
 			newf = best_nearby(delta, newx, fbefore, nvars);
 			/* if the further (optimistic) move was bad.... */
@@ -277,31 +257,41 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 			/* and the old points are due to actual */
 			/* displacements; beware of roundoff errors that */
 			/* might cause newf < fbefore */
-			keep = 0;
-			#pragma omp parallel
-			{ 
-				#pragma omp for 
-					for (i = 0; i < nvars; i++) {
-						if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i]))){
-							keep = 1;
-							#pragma omp cancel for 
-						}
-					}
-				#pragma omp barrier
-			}
-		}
 
+
+			keep = 0;
+			for (i = 0; i < nvars; i++) {
+				keep = 1;
+				if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i])))
+					break;
+				else
+					keep = 0;
+			}
+
+			// keep = 0;
+            // #pragma omp parallel
+            // { 
+            //     #pragma omp for 
+            //         for (i = 0; i < nvars; i++) {
+            //             if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i]))){
+            //                 keep = 1;
+            //                 #pragma omp cancel for 
+            //             }
+            //         }
+            //     #pragma omp barrier
+            // }
+		}
 		if ((steplength >= epsilon) && (newf >= fbefore)) {
 			steplength = steplength * rho;
-			#pragma omp parallel for 
-				for (i = 0; i < nvars; i++) {
-					delta[i] *= rho;
-				}
+			// #pragma omp parallel for 
+			for (i = 0; i < nvars; i++) {
+				delta[i] *= rho;
+			}
 		}
 	}
-	#pragma omp parallel for 
-		for (i = 0; i < nvars; i++)
-			endpt[i] = xbefore[i];
+	// #pragma omp parallel for 
+	for (i = 0; i < nvars; i++)
+		endpt[i] = xbefore[i];
 
 	return (iters);
 }
@@ -310,6 +300,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 double get_wtime(void)
 {
     struct timeval t;
+
     gettimeofday(&t, NULL);
 
     return (double)t.tv_sec + (double)t.tv_usec*1.0e-6;
@@ -317,6 +308,8 @@ double get_wtime(void)
 
 int main(int argc, char *argv[])
 {
+	omp_set_num_threads(8);
+
 	double startpt[MAXVARS], endpt[MAXVARS];
 	int itermax = IMAX;
 	double rho = RHO_BEGIN;
@@ -331,6 +324,8 @@ int main(int argc, char *argv[])
 	double best_pt[MAXVARS];
 	int best_trial = -1;
 	int best_jj = -1;
+
+	#pragma omp parallel for
 	for (i = 0; i < MAXVARS; i++) best_pt[i] = 0.0;
 
 	ntrials = 128*1024;	/* number of trials */
@@ -338,8 +333,10 @@ int main(int argc, char *argv[])
 	srand48(time(0));
 
 	t0 = get_wtime();
+	#pragma omp parallel for
 	for (trial = 0; trial < ntrials; trial++) {
 		/* starting guess for rosenbrock test function, search space in [-4, 4) */
+		#pragma omp parallel for
 		for (i = 0; i < nvars; i++) {
 			startpt[i] = 4.0*drand48()-4.0;
 		}
@@ -362,7 +359,6 @@ int main(int argc, char *argv[])
 			for (i = 0; i < nvars; i++)
 				best_pt[i] = endpt[i];
 		}
-		printf("Number of trial:%d\r",trial);
 	}
 	t1 = get_wtime();
 
