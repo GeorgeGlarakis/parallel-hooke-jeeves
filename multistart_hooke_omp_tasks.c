@@ -216,76 +216,88 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	iters = 0;
 	fbefore = f(newx, nvars);
 	newf = fbefore;
-	while ((iters < itermax) && (steplength > epsilon)) {
-		iters++;
-		iadj++;
-#if DEBUG
-		int j;
-		printf("\nAfter %5d funevals, f(x) =  %.4le at\n", funevals, fbefore);
-		for (j = 0; j < nvars; j++)
-			printf("   x[%2d] = %.4le\n", j, xbefore[j]);
-#endif
-		/* find best new point, one coord at a time */
-		// #pragma omp parallel for 
-		for (i = 0; i < nvars; i++) {
-			newx[i] = xbefore[i];
-		}
-		newf = best_nearby(delta, newx, fbefore, nvars);
-		/* if we made some improvements, pursue that direction */
-		keep = 1;
-		while ((newf < fbefore) && (keep == 1)) {
-			iadj = 0;
-			// #pragma omp parallel for private(tmp)
-			for (i = 0; i < nvars; i++) {
-				/* firstly, arrange the sign of delta[] */
-				if (newx[i] <= xbefore[i])
-					delta[i] = 0.0 - fabs(delta[i]);
-				else
-					delta[i] = fabs(delta[i]);
-				/* now, move further in this direction */
-				tmp = xbefore[i];
-				xbefore[i] = newx[i];
-				newx[i] = newx[i] + newx[i] - tmp;
-			}
-			fbefore = newf;
-			newf = best_nearby(delta, newx, fbefore, nvars);
-			/* if the further (optimistic) move was bad.... */
-			if (newf >= fbefore)
-				break;
 
-			/* make sure that the differences between the new */
-			/* and the old points are due to actual */
-			/* displacements; beware of roundoff errors that */
-			/* might cause newf < fbefore */
-
-
-			keep = 0;
-			for (i = 0; i < nvars; i++) {
-				keep = 1;
-				if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i])))
-					break;
-				else
-					keep = 0;
-			}
-
-			// keep = 0;
-            // #pragma omp parallel
-            // { 
-            //     #pragma omp for 
-            //         for (i = 0; i < nvars; i++) {
-            //             if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i]))){
-            //                 keep = 1;
-            //                 #pragma omp cancel for 
-            //             }
-            //         }
-            //     #pragma omp barrier
-            // }
-		}
-		if ((steplength >= epsilon) && (newf >= fbefore)) {
-			steplength = steplength * rho;
+	#pragma omp parallel 
+	#pragma omp single 
+	{
+		while ((iters < itermax) && (steplength > epsilon)) {
+			iters++;
+			iadj++;
+	#if DEBUG
+			int j;
+			printf("\nAfter %5d funevals, f(x) =  %.4le at\n", funevals, fbefore);
+			for (j = 0; j < nvars; j++)
+				printf("   x[%2d] = %.4le\n", j, xbefore[j]);
+	#endif
+			/* find best new point, one coord at a time */
 			// #pragma omp parallel for 
 			for (i = 0; i < nvars; i++) {
-				delta[i] *= rho;
+				newx[i] = xbefore[i];
+			}
+
+			#pragma omp task
+			{
+				newf = best_nearby(delta, newx, fbefore, nvars);
+			}
+			/* if we made some improvements, pursue that direction */
+			keep = 1;
+			while ((newf < fbefore) && (keep == 1)) {
+				iadj = 0;
+				// #pragma omp parallel for private(tmp)
+				for (i = 0; i < nvars; i++) {
+					/* firstly, arrange the sign of delta[] */
+					if (newx[i] <= xbefore[i])
+						delta[i] = 0.0 - fabs(delta[i]);
+					else
+						delta[i] = fabs(delta[i]);
+					/* now, move further in this direction */
+					tmp = xbefore[i];
+					xbefore[i] = newx[i];
+					newx[i] = newx[i] + newx[i] - tmp;
+				}
+				fbefore = newf;
+				#pragma omp task
+				{
+					newf = best_nearby(delta, newx, fbefore, nvars);
+				}
+				/* if the further (optimistic) move was bad.... */
+				if (newf >= fbefore)
+					break;
+
+				/* make sure that the differences between the new */
+				/* and the old points are due to actual */
+				/* displacements; beware of roundoff errors that */
+				/* might cause newf < fbefore */
+
+
+				keep = 0;
+				for (i = 0; i < nvars; i++) {
+					keep = 1;
+					if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i])))
+						break;
+					else
+						keep = 0;
+				}
+
+				// keep = 0;
+				// #pragma omp parallel
+				// { 
+				//     #pragma omp for 
+				//         for (i = 0; i < nvars; i++) {
+				//             if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i]))){
+				//                 keep = 1;
+				//                 #pragma omp cancel for 
+				//             }
+				//         }
+				//     #pragma omp barrier
+				// }
+			}
+			if ((steplength >= epsilon) && (newf >= fbefore)) {
+				steplength = steplength * rho;
+				// #pragma omp parallel for 
+				for (i = 0; i < nvars; i++) {
+					delta[i] *= rho;
+				}
 			}
 		}
 	}
@@ -325,7 +337,6 @@ int main(int argc, char *argv[])
 	int best_trial = -1;
 	int best_jj = -1;
 
-	#pragma omp parallel for
 	for (i = 0; i < MAXVARS; i++) best_pt[i] = 0.0;
 
 	ntrials = 128*1024;	/* number of trials */
@@ -333,31 +344,39 @@ int main(int argc, char *argv[])
 	srand48(time(0));
 
 	t0 = get_wtime();
-	#pragma omp parallel for
-	for (trial = 0; trial < ntrials; trial++) {
-		/* starting guess for rosenbrock test function, search space in [-4, 4) */
-		#pragma omp parallel for
-		for (i = 0; i < nvars; i++) {
-			startpt[i] = 4.0*drand48()-4.0;
-		}
+	#pragma omp parallel 
+	#pragma omp single 
+	{
+		for (trial = 0; trial < ntrials; trial++) {
+			/* starting guess for rosenbrock test function, search space in [-4, 4) */
+			// #pragma omp parallel for
+			for (i = 0; i < nvars; i++) {
+				startpt[i] = 4.0*drand48()-4.0;
+			}
 
-		jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
-#if DEBUG
-		printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
-		for (i = 0; i < nvars; i++)
-			printf("x[%3d] = %15.7le \n", i, endpt[i]);
-#endif
-
-		fx = f(endpt, nvars);
-#if DEBUG
-		printf("f(x) = %15.7le\n", fx);
-#endif
-		if (fx < best_fx) {
-			best_trial = trial;
-			best_jj = jj;
-			best_fx = fx;
+			#pragma omp task 
+			{
+				jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
+			}
+	#if DEBUG
+			printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
 			for (i = 0; i < nvars; i++)
-				best_pt[i] = endpt[i];
+				printf("x[%3d] = %15.7le \n", i, endpt[i]);
+	#endif
+			#pragma omp task 
+			{
+				fx = f(endpt, nvars);
+			}
+	#if DEBUG
+			printf("f(x) = %15.7le\n", fx);
+	#endif
+			if (fx < best_fx) {
+				best_trial = trial;
+				best_jj = jj;
+				best_fx = fx;
+				for (i = 0; i < nvars; i++)
+					best_pt[i] = endpt[i];
+			}
 		}
 	}
 	t1 = get_wtime();
