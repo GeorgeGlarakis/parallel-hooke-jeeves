@@ -1,4 +1,4 @@
-CC=gcc-8
+CC=gcc-9
 CFLAGS=-Wall -O3
 
 #TODO: 
@@ -11,7 +11,9 @@ CFLAGS=-Wall -O3
 all: multistart_hooke_seq
 
 hooke: multistart_hooke_seq.c
+	rm -f multistart_hooke_seq
 	$(CC) $(CFLAGS) -o multistart_hooke_seq multistart_hooke_seq.c
+	./multistart_hooke_seq
 
 
 clean:
