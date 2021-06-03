@@ -137,6 +137,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <mpi.h>
 
 #define MAXVARS		(250)	/* max # of variables	     */
 #define RHO_BEGIN	(0.5)	/* stepsize geometric shrink */
@@ -197,7 +198,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	double delta[MAXVARS];
 	double newf, fbefore, steplength, tmp;
 	double xbefore[MAXVARS], newx[MAXVARS];
-	int i, j, keep;
+	int i, keep;
 	int iters, iadj;
 
 	for (i = 0; i < nvars; i++) {
@@ -215,6 +216,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 		iters++;
 		iadj++;
 #if DEBUG
+		int j;
 		printf("\nAfter %5d funevals, f(x) =  %.4le at\n", funevals, fbefore);
 		for (j = 0; j < nvars; j++)
 			printf("   x[%2d] = %.4le\n", j, xbefore[j]);

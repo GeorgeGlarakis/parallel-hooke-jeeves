@@ -1,5 +1,6 @@
 CC=gcc-9
 CFLAGS=-Wall -O3
+MPI=mpicc
 
 #TODO: 
 # add the following implementations: 
@@ -8,13 +9,13 @@ CFLAGS=-Wall -O3
 # multistart_hooke_mpi 
 # multistart_hooke_mpi_omp
 
-all: multistart_hooke_seq
+all: multistart_hooke_mpi
 
-hooke: multistart_hooke_seq.c
-	rm -f multistart_hooke_seq
-	$(CC) $(CFLAGS) -o multistart_hooke_seq multistart_hooke_seq.c
-	./multistart_hooke_seq
+hooke: multistart_hooke_mpi.c
+	rm -f multistart_hooke_mpi
+	$(MPI) $(CFLAGS) -o multistart_hooke_mpi multistart_hooke_mpi.c
+	mpirun -np 4 ./multistart_hooke_mpi
 
 
 clean:
-	rm -f multistart_hooke_seq
+	rm -f multistart_hooke_mpi
