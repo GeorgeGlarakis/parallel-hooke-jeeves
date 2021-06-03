@@ -238,9 +238,8 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 			}
 
 			#pragma omp task
-			{
-				newf = best_nearby(delta, newx, fbefore, nvars);
-			}
+			newf = best_nearby(delta, newx, fbefore, nvars);
+
 			/* if we made some improvements, pursue that direction */
 			keep = 1;
 			while ((newf < fbefore) && (keep == 1)) {
@@ -258,10 +257,10 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 					newx[i] = newx[i] + newx[i] - tmp;
 				}
 				fbefore = newf;
+
 				#pragma omp task
-				{
-					newf = best_nearby(delta, newx, fbefore, nvars);
-				}
+				newf = best_nearby(delta, newx, fbefore, nvars);
+
 				/* if the further (optimistic) move was bad.... */
 				if (newf >= fbefore)
 					break;
@@ -344,39 +343,31 @@ int main(int argc, char *argv[])
 	srand48(time(0));
 
 	t0 = get_wtime();
-	#pragma omp parallel 
-	#pragma omp single 
-	{
-		for (trial = 0; trial < ntrials; trial++) {
-			/* starting guess for rosenbrock test function, search space in [-4, 4) */
-			// #pragma omp parallel for
-			for (i = 0; i < nvars; i++) {
-				startpt[i] = 4.0*drand48()-4.0;
-			}
+	for (trial = 0; trial < ntrials; trial++) {
+		/* starting guess for rosenbrock test function, search space in [-4, 4) */
+		// #pragma omp parallel for
+		for (i = 0; i < nvars; i++) {
+			startpt[i] = 4.0*drand48()-4.0;
+		}
 
-			#pragma omp task 
-			{
-				jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
-			}
-	#if DEBUG
-			printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
+		jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
+
+#if DEBUG
+		printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
+		for (i = 0; i < nvars; i++)
+			printf("x[%3d] = %15.7le \n", i, endpt[i]);
+#endif
+		fx = f(endpt, nvars);
+
+#if DEBUG
+		printf("f(x) = %15.7le\n", fx);
+#endif
+		if (fx < best_fx) {
+			best_trial = trial;
+			best_jj = jj;
+			best_fx = fx;
 			for (i = 0; i < nvars; i++)
-				printf("x[%3d] = %15.7le \n", i, endpt[i]);
-	#endif
-			#pragma omp task 
-			{
-				fx = f(endpt, nvars);
-			}
-	#if DEBUG
-			printf("f(x) = %15.7le\n", fx);
-	#endif
-			if (fx < best_fx) {
-				best_trial = trial;
-				best_jj = jj;
-				best_fx = fx;
-				for (i = 0; i < nvars; i++)
-					best_pt[i] = endpt[i];
-			}
+				best_pt[i] = endpt[i];
 		}
 	}
 	t1 = get_wtime();
