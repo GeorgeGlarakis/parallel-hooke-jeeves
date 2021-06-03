@@ -215,7 +215,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 
 
     #pragma omp parallel
-    #pragma omp single
+    #pragma omp single private(iters)
     {
         while ((iters < itermax) && (steplength > epsilon)) {
             iters++;
