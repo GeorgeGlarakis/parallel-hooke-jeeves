@@ -317,12 +317,13 @@ int main(int argc, char *argv[])
 	nvars = 16;		/* number of variables (problem dimension) */
 	srand48(time(0));
 
-	if (rank == 0)
+	if (rank == 0){
 		t0 = get_wtime();
-		int finalBest_trial;
-		int	finalBest_jj;
-		double finalBest_fx;
-
+	}
+	int finalBest_trial;
+	int	finalBest_jj;
+	double finalBest_fx;
+	double finalBest_pt[MAXVARS];
 
 	printf("I am rank %d of %d\n", rank, size);
 
@@ -358,15 +359,20 @@ int main(int argc, char *argv[])
 		finalBest_trial = best_trial;
 		finalBest_jj = best_jj;
 		finalBest_fx = best_fx;
+		for (i = 0; i < nvars; i++)
+			finalBest_pt[i] = best_pt[i];
 		// Master receives from all other ranks
 		for(int i = 1; i < size; ++i) {
-			MPI_Recv(&best_trial, 1, MPI_INT, i, 42, MPI_COMM_WORLD,&status);
-			MPI_Recv(&best_jj, 1, MPI_INT, i, 42, MPI_COMM_WORLD,&status);
-			MPI_Recv(&best_fx, 1, MPI_DOUBLE, i, 42, MPI_COMM_WORLD,&status);
+			MPI_Recv(&best_trial, 1, MPI_INT, i, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Recv(&best_jj, 1, MPI_INT, i, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Recv(&best_fx, 1, MPI_DOUBLE, i, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Recv(best_pt, MAXVARS, MPI_DOUBLE, i, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 			if (best_fx < finalBest_fx) {
 				finalBest_trial = best_trial;
 				finalBest_jj = best_jj;
 				finalBest_fx = best_fx;
+				for (i = 0; i < nvars; i++)
+					finalBest_pt[i] = best_pt[i];
 			}
 		}
 	}
@@ -374,6 +380,7 @@ int main(int argc, char *argv[])
 		MPI_Send(&best_trial, 1, MPI_INT, 0, 42,MPI_COMM_WORLD);
 		MPI_Send(&best_jj, 1, MPI_INT, 0, 42,MPI_COMM_WORLD);
 		MPI_Send(&best_fx, 1, MPI_DOUBLE, 0, 42,MPI_COMM_WORLD);
+		MPI_Send(best_pt, MAXVARS, MPI_DOUBLE, 0, 42,MPI_COMM_WORLD);
 	} 
 	
 
@@ -384,11 +391,11 @@ int main(int argc, char *argv[])
 		printf("Elapsed time = %.3lf s\n", t1-t0);
 		printf("Total number of trials = %d\n", ntrials);
 		printf("Total number of function evaluations = %ld\n", funevals);
-		printf("Best result at trial %d used %d iterations, and returned\n", best_trial, best_jj);
+		printf("Best result at trial %d used %d iterations, and returned\n", finalBest_trial, finalBest_jj);
 		for (i = 0; i < nvars; i++) {
-			printf("x[%3d] = %15.7le \n", i, best_pt[i]);
+			printf("x[%3d] = %15.7le \n", i, finalBest_pt[i]);
 		}
-		printf("f(x) = %15.7le\n", best_fx);
+		printf("f(x) = %15.7le\n", finalBest_fx);
 	}
 
 	MPI_Finalize();
