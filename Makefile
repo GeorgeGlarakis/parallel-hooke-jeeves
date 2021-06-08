@@ -14,7 +14,7 @@ all: multistart_hooke_mpi
 
 hooke: multistart_hooke_mpi.c
 	rm -f multistart_hooke_mpi
-	$(MPI) $(CUDA) $(CFLAGS) -o multistart_hooke_mpi multistart_hooke_mpi.c
+	$(MPI) $(CFLAGS) -o multistart_hooke_mpi multistart_hooke_mpi.c
 	mpirun -np 2 ./multistart_hooke_mpi
 
 

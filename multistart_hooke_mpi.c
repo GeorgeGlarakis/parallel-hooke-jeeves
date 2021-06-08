@@ -308,9 +308,6 @@ int main(int argc, char *argv[])
 
 	t0 = get_wtime();
 
-
-
-
 //MPI starts ----------------------------------------------------------------------------
 	MPI_Init(&argc, &argv);
 
@@ -325,47 +322,47 @@ int main(int argc, char *argv[])
 	printf("I am rank %d of %d\n", rank, size);
 
 	for (trial = 0; trial < ntrials; trial++) {
-		/* starting guess for rosenbrock test function, search space in [-4, 4) */
-		for (i = 0; i < nvars; i++) {
-			startpt[i] = 4.0*drand48()-4.0;
-		}
+		if (rank == trial%4) {
+				/* starting guess for rosenbrock test function, search space in [-4, 4) */
+			for (i = 0; i < nvars; i++) {
+				startpt[i] = 4.0*drand48()-4.0;
+			}
 
-		jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
-#if DEBUG
-		printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
-		for (i = 0; i < nvars; i++)
-			printf("x[%3d] = %15.7le \n", i, endpt[i]);
-#endif
-
-		fx = f(endpt, nvars);
-#if DEBUG
-		printf("f(x) = %15.7le\n", fx);
-#endif
-		if (fx < best_fx) {
-			best_trial = trial;
-			best_jj = jj;
-			best_fx = fx;
+			jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
+	#if DEBUG
+			printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
 			for (i = 0; i < nvars; i++)
-				best_pt[i] = endpt[i];
+				printf("x[%3d] = %15.7le \n", i, endpt[i]);
+	#endif
+
+			fx = f(endpt, nvars);
+	#if DEBUG
+			printf("f(x) = %15.7le\n", fx);
+	#endif
+			if (fx < best_fx) {
+				best_trial = trial;
+				best_jj = jj;
+				best_fx = fx;
+				for (i = 0; i < nvars; i++)
+					best_pt[i] = endpt[i];
+			}
 		}
 	}
 
-	int MPI_Finalize();
+	MPI_Finalize();
 //MPI ends -----------------------------------------------------------------------------
 
-
-
 	t1 = get_wtime();
-
-	printf("\n\nFINAL RESULTS:\n");
-	printf("Elapsed time = %.3lf s\n", t1-t0);
-	printf("Total number of trials = %d\n", ntrials);
-	printf("Total number of function evaluations = %ld\n", funevals);
-	printf("Best result at trial %d used %d iterations, and returned\n", best_trial, best_jj);
-	for (i = 0; i < nvars; i++) {
-		printf("x[%3d] = %15.7le \n", i, best_pt[i]);
+	if (rank == 0){
+		printf("\n\nFINAL RESULTS:\n");
+		printf("Elapsed time = %.3lf s\n", t1-t0);
+		printf("Total number of trials = %d\n", ntrials);
+		printf("Total number of function evaluations = %ld\n", funevals);
+		printf("Best result at trial %d used %d iterations, and returned\n", best_trial, best_jj);
+		for (i = 0; i < nvars; i++) {
+			printf("x[%3d] = %15.7le \n", i, best_pt[i]);
+		}
+		printf("f(x) = %15.7le\n", best_fx);
 	}
-	printf("f(x) = %15.7le\n", best_fx);
-
 	return 0;
 }
