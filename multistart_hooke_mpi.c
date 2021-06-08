@@ -285,6 +285,10 @@ double get_wtime(void)
 
 int main(int argc, char *argv[])
 {
+
+	//MPI starts ----------------------------------------------------------------------------
+	MPI_Init(&argc, &argv);
+
 	double startpt[MAXVARS], endpt[MAXVARS];
 	int itermax = IMAX;
 	double rho = RHO_BEGIN;
@@ -300,17 +304,6 @@ int main(int argc, char *argv[])
 	int best_trial = -1;
 	int best_jj = -1;
 
-	for (i = 0; i < MAXVARS; i++) best_pt[i] = 0.0;
-
-	ntrials = 128*1024;	/* number of trials */
-	nvars = 16;		/* number of variables (problem dimension) */
-	srand48(time(0));
-
-	t0 = get_wtime();
-
-//MPI starts ----------------------------------------------------------------------------
-	MPI_Init(&argc, &argv);
-
 	//MPI vars
 	int rank = 0;
 	int size = 0;
@@ -318,12 +311,24 @@ int main(int argc, char *argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 	MPI_Comm_size(MPI_COMM_WORLD,&size);
 
+	for (i = 0; i < MAXVARS; i++) best_pt[i] = 0.0;
+
+	ntrials = 128*1024;	/* number of trials */
+	nvars = 16;		/* number of variables (problem dimension) */
+	srand48(time(0));
+
+	if (rank == 0)
+		t0 = get_wtime();
+		int finalBest_trial;
+		int	finalBest_jj;
+		double finalBest_fx;
+
 
 	printf("I am rank %d of %d\n", rank, size);
 
 	for (trial = 0; trial < ntrials; trial++) {
 		if (rank == trial%4) {
-				/* starting guess for rosenbrock test function, search space in [-4, 4) */
+				
 			for (i = 0; i < nvars; i++) {
 				startpt[i] = 4.0*drand48()-4.0;
 			}
@@ -349,11 +354,32 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	MPI_Finalize();
-//MPI ends -----------------------------------------------------------------------------
+	if(rank==0) {
+		finalBest_trial = best_trial;
+		finalBest_jj = best_jj;
+		finalBest_fx = best_fx;
+		// Master receives from all other ranks
+		for(int i = 1; i < size; ++i) {
+			MPI_Recv(&best_trial, 1, MPI_INT, i, 42, MPI_COMM_WORLD,&status);
+			MPI_Recv(&best_jj, 1, MPI_INT, i, 42, MPI_COMM_WORLD,&status);
+			MPI_Recv(&best_fx, 1, MPI_DOUBLE, i, 42, MPI_COMM_WORLD,&status);
+			if (best_fx < finalBest_fx) {
+				finalBest_trial = best_trial;
+				finalBest_jj = best_jj;
+				finalBest_fx = best_fx;
+			}
+		}
+	}
+	else {
+		MPI_Send(&best_trial, 1, MPI_INT, 0, 42,MPI_COMM_WORLD);
+		MPI_Send(&best_jj, 1, MPI_INT, 0, 42,MPI_COMM_WORLD);
+		MPI_Send(&best_fx, 1, MPI_DOUBLE, 0, 42,MPI_COMM_WORLD);
+	} 
+	
 
-	t1 = get_wtime();
+
 	if (rank == 0){
+		t1 = get_wtime();
 		printf("\n\nFINAL RESULTS:\n");
 		printf("Elapsed time = %.3lf s\n", t1-t0);
 		printf("Total number of trials = %d\n", ntrials);
@@ -364,5 +390,7 @@ int main(int argc, char *argv[])
 		}
 		printf("f(x) = %15.7le\n", best_fx);
 	}
+
+	MPI_Finalize();
 	return 0;
 }
