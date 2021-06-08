@@ -307,6 +307,23 @@ int main(int argc, char *argv[])
 	srand48(time(0));
 
 	t0 = get_wtime();
+
+
+
+
+//MPI starts ----------------------------------------------------------------------------
+	MPI_Init(&argc, &argv);
+
+	//MPI vars
+	int rank = 0;
+	int size = 0;
+
+	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+	MPI_Comm_size(MPI_COMM_WORLD,&size);
+
+
+	printf("I am rank %d of %d\n", rank, size);
+
 	for (trial = 0; trial < ntrials; trial++) {
 		/* starting guess for rosenbrock test function, search space in [-4, 4) */
 		for (i = 0; i < nvars; i++) {
@@ -332,6 +349,12 @@ int main(int argc, char *argv[])
 				best_pt[i] = endpt[i];
 		}
 	}
+
+	int MPI_Finalize();
+//MPI ends -----------------------------------------------------------------------------
+
+
+
 	t1 = get_wtime();
 
 	printf("\n\nFINAL RESULTS:\n");

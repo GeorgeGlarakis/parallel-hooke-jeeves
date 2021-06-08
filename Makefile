@@ -1,6 +1,7 @@
 CC=gcc-9
 CFLAGS=-Wall -O3
 MPI=mpicc
+#CUDA=--mca opal_warn_on_missing_libcuda 0
 
 #TODO: 
 # add the following implementations: 
@@ -13,8 +14,8 @@ all: multistart_hooke_mpi
 
 hooke: multistart_hooke_mpi.c
 	rm -f multistart_hooke_mpi
-	$(MPI) $(CFLAGS) -o multistart_hooke_mpi multistart_hooke_mpi.c
-	mpirun -np 4 ./multistart_hooke_mpi
+	$(MPI) $(CUDA) $(CFLAGS) -o multistart_hooke_mpi multistart_hooke_mpi.c
+	mpirun -np 2 ./multistart_hooke_mpi
 
 
 clean:
