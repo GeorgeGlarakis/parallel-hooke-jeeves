@@ -138,6 +138,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <mpi.h>
+#include <omp.h>
 
 #define MAXVARS		(250)	/* max # of variables	     */
 #define RHO_BEGIN	(0.5)	/* stepsize geometric shrink */
@@ -201,72 +202,108 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	int i, keep;
 	int iters, iadj;
 
+	omp_set_num_threads(2);
+	
+	//#pragma omp parallel for 
 	for (i = 0; i < nvars; i++) {
 		newx[i] = xbefore[i] = startpt[i];
 		delta[i] = fabs(startpt[i] * rho);
 		if (delta[i] == 0.0)
 			delta[i] = rho;
 	}
+
 	iadj = 0;
 	steplength = rho;
 	iters = 0;
 	fbefore = f(newx, nvars);
 	newf = fbefore;
-	while ((iters < itermax) && (steplength > epsilon)) {
-		iters++;
-		iadj++;
-#if DEBUG
-		int j;
-		printf("\nAfter %5d funevals, f(x) =  %.4le at\n", funevals, fbefore);
-		for (j = 0; j < nvars; j++)
-			printf("   x[%2d] = %.4le\n", j, xbefore[j]);
-#endif
-		/* find best new point, one coord at a time */
-		for (i = 0; i < nvars; i++) {
-			newx[i] = xbefore[i];
-		}
-		newf = best_nearby(delta, newx, fbefore, nvars);
-		/* if we made some improvements, pursue that direction */
-		keep = 1;
-		while ((newf < fbefore) && (keep == 1)) {
-			iadj = 0;
-			for (i = 0; i < nvars; i++) {
-				/* firstly, arrange the sign of delta[] */
-				if (newx[i] <= xbefore[i])
-					delta[i] = 0.0 - fabs(delta[i]);
-				else
-					delta[i] = fabs(delta[i]);
-				/* now, move further in this direction */
-				tmp = xbefore[i];
-				xbefore[i] = newx[i];
-				newx[i] = newx[i] + newx[i] - tmp;
-			}
-			fbefore = newf;
-			newf = best_nearby(delta, newx, fbefore, nvars);
-			/* if the further (optimistic) move was bad.... */
-			if (newf >= fbefore)
-				break;
 
-			/* make sure that the differences between the new */
-			/* and the old points are due to actual */
-			/* displacements; beware of roundoff errors that */
-			/* might cause newf < fbefore */
-			keep = 0;
+	
+
+	#pragma omp parallel 
+	#pragma omp single 
+	{
+		while ((iters < itermax) && (steplength > epsilon)) {
+			iters++;
+			iadj++;
+	#if DEBUG
+			int j;
+			printf("\nAfter %5d funevals, f(x) =  %.4le at\n", funevals, fbefore);
+			for (j = 0; j < nvars; j++)
+				printf("   x[%2d] = %.4le\n", j, xbefore[j]);
+	#endif
+			/* find best new point, one coord at a time */
+			// #pragma omp parallel for 
 			for (i = 0; i < nvars; i++) {
-				keep = 1;
-				if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i])))
-					break;
-				else
-					keep = 0;
+				newx[i] = xbefore[i];
 			}
-		}
-		if ((steplength >= epsilon) && (newf >= fbefore)) {
-			steplength = steplength * rho;
-			for (i = 0; i < nvars; i++) {
-				delta[i] *= rho;
+
+			#pragma omp task
+			newf = best_nearby(delta, newx, fbefore, nvars);
+
+			/* if we made some improvements, pursue that direction */
+			keep = 1;
+			while ((newf < fbefore) && (keep == 1)) {
+				iadj = 0;
+				// #pragma omp parallel for private(tmp)
+				for (i = 0; i < nvars; i++) {
+					/* firstly, arrange the sign of delta[] */
+					if (newx[i] <= xbefore[i])
+						delta[i] = 0.0 - fabs(delta[i]);
+					else
+						delta[i] = fabs(delta[i]);
+					/* now, move further in this direction */
+					tmp = xbefore[i];
+					xbefore[i] = newx[i];
+					newx[i] = newx[i] + newx[i] - tmp;
+				}
+				fbefore = newf;
+
+				#pragma omp task
+				newf = best_nearby(delta, newx, fbefore, nvars);
+
+				/* if the further (optimistic) move was bad.... */
+				if (newf >= fbefore)
+					break;
+
+				/* make sure that the differences between the new */
+				/* and the old points are due to actual */
+				/* displacements; beware of roundoff errors that */
+				/* might cause newf < fbefore */
+
+
+				keep = 0;
+				for (i = 0; i < nvars; i++) {
+					keep = 1;
+					if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i])))
+						break;
+					else
+						keep = 0;
+				}
+
+				// keep = 0;
+				// #pragma omp parallel
+				// { 
+				//     #pragma omp for 
+				//         for (i = 0; i < nvars; i++) {
+				//             if (fabs(newx[i] - xbefore[i]) > (0.5 * fabs(delta[i]))){
+				//                 keep = 1;
+				//                 #pragma omp cancel for 
+				//             }
+				//         }
+				//     #pragma omp barrier
+				// }
+			}
+			if ((steplength >= epsilon) && (newf >= fbefore)) {
+				steplength = steplength * rho;
+				// #pragma omp parallel for 
+				for (i = 0; i < nvars; i++) {
+					delta[i] *= rho;
+				}
 			}
 		}
 	}
+	// #pragma omp parallel for 
 	for (i = 0; i < nvars; i++)
 		endpt[i] = xbefore[i];
 
