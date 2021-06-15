@@ -15,7 +15,7 @@ all: multistart_hooke_mpi_omp
 hooke: multistart_hooke_mpi_omp.c
 	rm -f multistart_hooke_mpi_omp
 	$(MPI) $(CFLAGS) -o multistart_hooke_mpi_omp multistart_hooke_mpi_omp.c
-	mpirun -np 2 ./multistart_hooke_mpi_omp
+	mpirun -np 4 ./multistart_hooke_mpi_omp
 
 
 clean:

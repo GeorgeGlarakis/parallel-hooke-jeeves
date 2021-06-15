@@ -202,7 +202,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	int i, keep;
 	int iters, iadj;
 
-	
+	omp_set_num_threads(2);
 	//#pragma omp parallel for 
 	for (i = 0; i < nvars; i++) {
 		newx[i] = xbefore[i] = startpt[i];
@@ -322,7 +322,6 @@ double get_wtime(void)
 int main(int argc, char *argv[])
 {
 
-	omp_set_num_threads(2);
 	//MPI starts ----------------------------------------------------------------------------
 	MPI_Init(&argc, &argv);
 
