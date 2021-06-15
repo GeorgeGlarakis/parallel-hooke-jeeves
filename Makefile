@@ -1,6 +1,6 @@
 CC=gcc-9
 CFLAGS=-Wall -O3
-MPI=mpicc -openmp
+MPI=mpicc -fopenmp
 #CUDA=--mca opal_warn_on_missing_libcuda 0
 
 #TODO: 
