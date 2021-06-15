@@ -201,9 +201,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	double xbefore[MAXVARS], newx[MAXVARS];
 	int i, keep;
 	int iters, iadj;
-
-	
-	#pragma omp parallel for 
+ 
 	for (i = 0; i < nvars; i++) {
 		newx[i] = xbefore[i] = startpt[i];
 		delta[i] = fabs(startpt[i] * rho);
@@ -325,7 +323,7 @@ int main(int argc, char *argv[])
 	int best_trial = -1;
 	int best_jj = -1;
 
-	#pragma omp parallel for
+	#pragma omp for
 	for (i = 0; i < MAXVARS; i++) best_pt[i] = 0.0;
 
 	ntrials = 128*1024;	/* number of trials */
@@ -333,10 +331,10 @@ int main(int argc, char *argv[])
 	srand48(time(0));
 
 	t0 = get_wtime();
-	#pragma omp parallel for
+	#pragma omp for
 	for (trial = 0; trial < ntrials; trial++) {
 		/* starting guess for rosenbrock test function, search space in [-4, 4) */
-		#pragma omp parallel for
+		#pragma omp for
 		for (i = 0; i < nvars; i++) {
 			startpt[i] = 4.0*drand48()-4.0;
 		}
