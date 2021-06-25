@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
 	int best_trial = -1;
 	int best_jj = -1;
 
-	#pragma omp for
+	
 	for (i = 0; i < MAXVARS; i++) best_pt[i] = 0.0;
 
 	ntrials = 128*1024;	/* number of trials */
@@ -331,31 +331,37 @@ int main(int argc, char *argv[])
 	srand48(time(0));
 
 	t0 = get_wtime();
-	#pragma omp for
-	for (trial = 0; trial < ntrials; trial++) {
-		/* starting guess for rosenbrock test function, search space in [-4, 4) */
+	#pragma omp parallel default(shared)
+	{
 		#pragma omp for
-		for (i = 0; i < nvars; i++) {
-			startpt[i] = 4.0*drand48()-4.0;
-		}
+		for (trial = 0; trial < ntrials; trial++) {
+			/* starting guess for rosenbrock test function, search space in [-4, 4) */
+			#pragma omp parallel shared(trial, ntrials)
+			{
+				#pragma omp for
+				for (i = 0; i < nvars; i++) {
+					startpt[i] = 4.0*drand48()-4.0;
+				}
+			}
 
-		jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
-#if DEBUG
-		printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
-		for (i = 0; i < nvars; i++)
-			printf("x[%3d] = %15.7le \n", i, endpt[i]);
-#endif
-
-		fx = f(endpt, nvars);
-#if DEBUG
-		printf("f(x) = %15.7le\n", fx);
-#endif
-		if (fx < best_fx) {
-			best_trial = trial;
-			best_jj = jj;
-			best_fx = fx;
+			jj = hooke(nvars, startpt, endpt, rho, epsilon, itermax);
+	#if DEBUG
+			printf("\n\n\nHOOKE %d USED %d ITERATIONS, AND RETURNED\n", trial, jj);
 			for (i = 0; i < nvars; i++)
-				best_pt[i] = endpt[i];
+				printf("x[%3d] = %15.7le \n", i, endpt[i]);
+	#endif
+
+			fx = f(endpt, nvars);
+	#if DEBUG
+			printf("f(x) = %15.7le\n", fx);
+	#endif
+			if (fx < best_fx) {
+				best_trial = trial;
+				best_jj = jj;
+				best_fx = fx;
+				for (i = 0; i < nvars; i++)
+					best_pt[i] = endpt[i];
+			}
 		}
 	}
 	t1 = get_wtime();
