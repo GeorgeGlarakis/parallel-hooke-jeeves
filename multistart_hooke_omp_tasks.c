@@ -217,7 +217,7 @@ int hooke(int nvars, double startpt[MAXVARS], double endpt[MAXVARS], double rho,
 	fbefore = f(newx, nvars);
 	newf = fbefore;
 
-	omp_set_num_threads(8);
+	omp_set_num_threads(2);
 
 	#pragma omp parallel 
 	#pragma omp single 

@@ -1,3 +1,5 @@
 multistart_hooke_omp
 multistart_hooke_omp_tasks
 multistart_hooke_seq
+multistart_hooke_mpi_omp
+multistart_hooke_mpi
